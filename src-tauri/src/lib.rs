@@ -6,11 +6,7 @@ use tauri_plugin_shell::ShellExt;
 use tauri_plugin_updater::UpdaterExt;
 pub mod commands;
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -20,10 +16,18 @@ pub fn run() {
         .setup({
             let child_process = child_process.clone();
             move |app| {
-                let handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    update(handle).await.unwrap();
-                });
+                
+                // Automatically check for updates on startup
+                // This will run the update function in a blocking manner
+                // to ensure it completes before proceeding with the app setup.
+                // It blocks the main thread and waits for the update to yield before continuing.
+                
+                // Comment / Uncomment the following lines if you want to enable automatic updates on startup
+                
+                // let handle = app.handle().clone();
+                // tauri::async_runtime::block_on(async move {
+                //     update(handle).await.unwrap();
+                // });
 
                 // Initialize the shell plugin
                 app.handle()
@@ -95,7 +99,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![commands::greet, commands::graceful_restart])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(move |_app_handle, event| {
