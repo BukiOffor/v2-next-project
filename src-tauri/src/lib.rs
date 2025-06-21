@@ -1,20 +1,30 @@
+pub mod commands;
 use std::process;
 use std::sync::{Arc, Mutex};
-use tauri_plugin_shell::process::CommandChild;
-use tauri_plugin_shell::process::CommandEvent;
-use tauri_plugin_shell::ShellExt;
+use tauri_plugin_shell::{ShellExt, process::{CommandChild, CommandEvent}};
 use tauri_plugin_updater::UpdaterExt;
-pub mod commands;
+use tauri::{Manager, Emitter};
 
+struct AppState {
+    child_process: Arc<Mutex<Option<CommandChild>>>,
+}
 
+// Define a serializable payload struct. This is what we'll send to the frontend.
+#[derive(Clone, serde::Serialize)]
+struct SidecarPayload {
+  message: String,
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let child_process: Arc<Mutex<Option<CommandChild>>> = Arc::new(Mutex::new(None));
 
     tauri::Builder::default()
+        .manage(AppState{
+            child_process,
+        })
         .setup({
-            let child_process = child_process.clone();
+            //let child_process = child_process.clone();
             move |app| {
                 
                 // Automatically check for updates on startup
@@ -28,7 +38,7 @@ pub fn run() {
                 // tauri::async_runtime::block_on(async move {
                 //     update(handle).await.unwrap();
                 // });
-
+                let app_handle = app.handle().clone();
                 // Initialize the shell plugin
                 app.handle()
                     .plugin(tauri_plugin_shell::init())
@@ -45,7 +55,8 @@ pub fn run() {
                     Ok((mut rx, child)) => {
                         {
                             // Save the child handle
-                            let mut child_lock = child_process.lock().unwrap();
+                            let app_state = app.state::<AppState>();
+                            let mut child_lock = app_state.child_process.lock().unwrap();
                             *child_lock = Some(child);
                         }
 
@@ -53,13 +64,20 @@ pub fn run() {
                             while let Some(event) = rx.recv().await {
                                 match event {
                                     CommandEvent::Stdout(line) => {
-                                        println!("[Sidecar stdout] {:?}", line);
+                                        println!("[Sidecar stdout] {:?}", String::from_utf8_lossy(&line));
                                     }
                                     CommandEvent::Stderr(line) => {
-                                        eprintln!("[Sidecar stderr] {:?}", line);
+                                        eprintln!("[Sidecar stderr] {:?}", String::from_utf8_lossy(&line));
                                     }
                                     CommandEvent::Error(err) => {
-                                        eprintln!("[Sidecar error] {}", err);
+                                        let error_message = format!("[Sidecar error] {}", err);
+                                        eprintln!("{}", &error_message);
+                                        
+                                        // EMIT EVENT TO FRONTEND
+                                        app_handle.emit(
+                                            "sidecar-error",
+                                            SidecarPayload { message: error_message },
+                                        ).unwrap();
                                         process::exit(1); // Exit on error
                                     }
                                     CommandEvent::Terminated(_) => {
@@ -73,6 +91,7 @@ pub fn run() {
                     }
                     Err(err) => {
                         eprintln!("[Sidecar] Failed to spawn: {}", err);
+                        app.handle().exit(1);
                     }
                 }
 
@@ -80,8 +99,9 @@ pub fn run() {
             }
         })
         .on_window_event({
-            let child_process = child_process.clone();
-            move |_window, event| {
+
+            move |window, event| {
+                let child_process = window.state::<AppState>().child_process.clone();
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close(); // Prevent default to allow cleanup
 
@@ -92,21 +112,31 @@ pub fn run() {
                         println!("🛑 Sidecar process killed.");
                     }
                     // Now allow app to close
-                    process::exit(0);
-                }
+                    window.app_handle().exit(0);
+                } else  if let tauri::WindowEvent::Destroyed = event {
+                    // Kill sidecar if still running
+                    let mut child_lock = child_process.lock().unwrap();
+                    if let Some(child) = child_lock.take() {
+                        let _ = child.kill();
+                        println!("🛑 Sidecar process killed.");
+                    }
+                    // Now allow app to close
+                    window.app_handle().exit(0);
+                }  
             }
         })
+  
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![commands::greet, commands::graceful_restart])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(move |_app_handle, event| {
-            // Keep the app running in the background
+        .run(move |app_handle, event| {
+            // Kill the thread running in the background
             if let tauri::RunEvent::ExitRequested { .. } = event {
-                println!("🚨 Restart requested!");
-
+                println!("🚨 Exit requested!");
+                let child_process = app_handle.state::<AppState>().child_process.clone();
                 let mut lock = child_process.lock().unwrap();
                 if let Some(child) = lock.take() {
                     let _ = child.kill();
@@ -116,7 +146,7 @@ pub fn run() {
         });
 }
 
-async fn update(app: tauri::AppHandle) -> tauri_plugin_updater::Result<()> {
+async fn _update(app: tauri::AppHandle) -> tauri_plugin_updater::Result<()> {
     //if let Some(update) = app.updater()?.check().await? {
     if let Some(update) = app.updater_builder()
         .pubkey("dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhBMDZCRkUxNjE0RjlBNjMKUldSam1rOWg0YjhHaWhyN0E0QUU4T0hkMkljaHc2QlhTcExxcHhOL0w1c0MrZFpZaWdENGdjQncK")
