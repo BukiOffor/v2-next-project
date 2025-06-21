@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.v2-next-project.app",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "npm run dev && node utils/index.cjs",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "npm run build && node utils/index.cjs",
     "frontendDist": "../dist"
   },
   "app": {
