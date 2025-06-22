@@ -19,11 +19,11 @@ function App() {
 async function checkForAppUpdates(onUserClick: false) {
   const update = await check();
   if (update === null) {
-			await message('Failed to check for updates.\nPlease try again later.', { 
-				title: 'Error',
-				kind: 'error',
-				okLabel: 'OK'
-			});
+			 await message('You are on the latest version. Stay awesome!', { 
+      title: 'No Update Available',
+      kind: 'info',
+      okLabel: 'OK'
+    });
 			return;
 		} else if (update?.available) {
     const yes = await ask(`Update to ${update.version} is available!\n\nRelease notes: ${update.body}`, { 
@@ -40,11 +40,7 @@ async function checkForAppUpdates(onUserClick: false) {
       await invoke("graceful_restart");
     }
   } else if (onUserClick) {
-    await message('You are on the latest version. Stay awesome!', { 
-      title: 'No Update Available',
-      kind: 'info',
-      okLabel: 'OK'
-    });
+   
   }
 }
 
