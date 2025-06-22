@@ -21,3 +21,5 @@ pub fn graceful_restart(app: tauri::AppHandle){
     }
     app.restart();
 }
+
+

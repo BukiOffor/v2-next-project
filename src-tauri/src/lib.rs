@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod updates;
 use std::process;
 use std::sync::{Arc, Mutex};
 use tauri_plugin_shell::{ShellExt, process::{CommandChild, CommandEvent}};
@@ -23,6 +24,7 @@ pub fn run() {
         .manage(AppState{
             child_process,
         })
+        .manage(updates::PendingUpdate(Mutex::new(None)))
         .setup({
             //let child_process = child_process.clone();
             move |app| {
@@ -129,7 +131,14 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![commands::greet, commands::graceful_restart])
+        .invoke_handler(tauri::generate_handler![
+            commands::greet, 
+            commands::graceful_restart,  
+            #[cfg(desktop)]
+            updates::fetch_update,
+            #[cfg(desktop)]
+            updates::install_update
+        ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(move |app_handle, event| {

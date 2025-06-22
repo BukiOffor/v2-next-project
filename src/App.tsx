@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { check } from '@tauri-apps/plugin-updater';
 import { ask, message } from '@tauri-apps/plugin-dialog';
 import "./App.css";
+import { UpdateChecker } from "./Updater";
 
 function App() {
   const [greetMsg, setGreetMsg] = useState("");
@@ -59,6 +60,8 @@ async function checkForAppUpdates(onUserClick: false) {
 
   return (
     <main className="container">
+    <UpdateChecker/>
+
       <h1>Welcome to Tauri + React</h1>
 
       <div className="row">
