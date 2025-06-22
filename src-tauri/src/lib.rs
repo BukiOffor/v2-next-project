@@ -34,10 +34,10 @@ pub fn run() {
                 
                 // Comment / Uncomment the following lines if you want to enable automatic updates on startup
                 
-                let handle = app.handle().clone();
-                tauri::async_runtime::block_on(async move {
-                    update(handle).await.unwrap();
-                });
+                // let handle = app.handle().clone();
+                // tauri::async_runtime::block_on(async move {
+                //     update(handle).await.unwrap();
+                // });
                 // clone the app handle for events emitting
                 let app_handle = app.handle().clone();
                 // Initialize the shell plugin
